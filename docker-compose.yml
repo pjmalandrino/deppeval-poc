@@ -1,0 +1,53 @@
+services:
+  # PostgreSQL with pgvector extension
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ragdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag-network
+
+  # Web application with Gradio UI
+  webapp:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      args:
+        - PIP_CACHE_DIR=/tmp/pip-cache
+    container_name: webapp
+    ports:
+      - "7860:7860"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/ragdb
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - MODEL_NAME=gemma3:1b
+    volumes:
+      - ./app:/app
+      - ./data:/data
+      - ~/.pip-cache:/tmp/pip-cache
+    networks:
+      - rag-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  rag-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
