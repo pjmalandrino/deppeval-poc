@@ -19,3 +19,5 @@ app/app.py,0/3/0338104998400f0c277277ec54dbc28d8388020d
 init-ollama.sh,0/1/012905a967eea65dca17008ba6f2c78b10906f44
 8
 setup.sh,5/9/592a1aae25926e838f4bca2e1c8981f30b077dda
+A
+app/pdf-reader.py,6/8/680ad11f11bcad78f9266f957efe68ec1699e5cd
