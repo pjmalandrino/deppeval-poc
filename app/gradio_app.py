@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 Simple Gradio interface for RAG application using pgvector database.
-Allows uploading documents, asking questions, and viewing similar documents.
+Allows uploading documents, asking questions, and viewing similar content using vector similarity search.
 """
 
 import os
@@ -108,12 +108,12 @@ class RAGApp:
             # Generate embedding for query
             query_embedding = self.embedding_model.encode(query_text).tolist()
 
-            # Ensure the embedding is in the correct format - cast to float
-            query_embedding_float = [float(x) for x in query_embedding]
+            # Log embedding info for debugging
+            print(f"Generated query embedding with {len(query_embedding)} dimensions")
 
             # Search for similar documents
             start_time = time.time()
-            results = self.db.search_similar(query_embedding_float, top_k=top_k)
+            results = self.db.search_similar(query_embedding, top_k=top_k)
             search_time = time.time() - start_time
 
             if not results:
@@ -124,13 +124,29 @@ class RAGApp:
 
             for i, result in enumerate(results):
                 output += f"--- Result {i+1} (Similarity: {result['similarity']:.4f}) ---\n"
-                output += f"From: {result['metadata'].get('filename', 'Unknown')}\n"
-                output += f"Content: {result['content'][:200]}...\n\n"
+
+                # Safely extract metadata
+                metadata = result.get('metadata', {})
+                filename = metadata.get('filename', 'Unknown')
+
+                output += f"From: {filename}\n"
+
+                # Safely get content and truncate if needed
+                content = result.get('content', 'No content available')
+                if content:
+                    # Show first 200 chars with ellipsis if longer
+                    content_preview = content[:200] + ("..." if len(content) > 200 else "")
+                    output += f"Content: {content_preview}\n\n"
+                else:
+                    output += "Content: No text content available\n\n"
 
             return output
 
         except Exception as e:
-            return f"Error querying documents: {str(e)}"
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"Error in query_documents: {error_details}")
+            return f"Error querying documents: {str(e)}\nPlease check the application logs for details."
 
     def get_db_stats(self):
         """Get database statistics."""

@@ -136,7 +136,7 @@ class VectorDB:
                 metadata = metadata or {}
                 values.append((content, json.dumps(metadata), embedding))
 
-            # Execute batch insertion
+            # Use executemany for simpler batch insertion
             cursor.executemany(
                 f"""
                 INSERT INTO {self.table_name} (content, metadata, embedding)
@@ -176,6 +176,14 @@ class VectorDB:
         """
         conn = None
         try:
+            # Ensure query_embedding is a list of floats
+            if not all(isinstance(x, (float, int)) for x in query_embedding):
+                query_embedding = [float(x) for x in query_embedding]
+
+            # Ensure embedding has correct dimension
+            if len(query_embedding) != self.embedding_dim:
+                raise ValueError(f"Query embedding dimension ({len(query_embedding)}) does not match expected dimension ({self.embedding_dim})")
+
             conn = psycopg2.connect(self.connection_string)
             cursor = conn.cursor()
 
@@ -192,20 +200,32 @@ class VectorDB:
             else:
                 raise ValueError(f"Unsupported similarity metric: {similarity_metric}")
 
-            # Directly pass the array to be converted to a vector by PostgreSQL
-            cursor.execute(
-                f"""
+            # Format query embedding for pgvector
+            vector_str = f"[{','.join(str(x) for x in query_embedding)}]"
+
+            # Execute the query with proper error handling
+            query = f"""
                 SELECT id, content, metadata, {similarity_op} as similarity
                 FROM {self.table_name}
+                WHERE embedding IS NOT NULL
                 ORDER BY similarity DESC
                 LIMIT %s
-                """,
-                (query_embedding, top_k)
-            )
+            """
+
+            cursor.execute(query, (vector_str, top_k))
 
             results = []
             for doc_id, content, metadata_json, similarity in cursor.fetchall():
-                metadata = json.loads(metadata_json)
+                # Handle metadata parsing more safely
+                try:
+                    if isinstance(metadata_json, str):
+                        metadata = json.loads(metadata_json)
+                    else:
+                        metadata = metadata_json
+                except (json.JSONDecodeError, TypeError):
+                    # Default to empty dict if parsing fails
+                    metadata = {}
+
                 results.append({
                     "id": doc_id,
                     "content": content,
@@ -249,10 +269,18 @@ class VectorDB:
                 return None
 
             doc_id, content, metadata_json, embedding = result
+            try:
+                if isinstance(metadata_json, str):
+                    metadata = json.loads(metadata_json)
+                else:
+                    metadata = metadata_json
+            except (json.JSONDecodeError, TypeError):
+                metadata = {}
+
             return {
                 "id": doc_id,
                 "content": content,
-                "metadata": json.loads(metadata_json),
+                "metadata": metadata,
                 "embedding": embedding
             }
         except Exception as e:
