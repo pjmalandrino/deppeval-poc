@@ -182,16 +182,17 @@ class VectorDB:
             # Select similarity operator based on metric
             if similarity_metric == "cosine":
                 # Cosine similarity: 1 - (vector <=> vector)
-                similarity_op = "1 - (embedding <=> %s)"
+                similarity_op = "1 - (embedding <=> %s::vector)"
             elif similarity_metric == "l2":
                 # Negative L2 distance (closer to 0 is better)
-                similarity_op = "-1 * (embedding <-> %s)"
+                similarity_op = "-1 * (embedding <-> %s::vector)"
             elif similarity_metric == "inner":
                 # Inner product
-                similarity_op = "embedding <#> %s"
+                similarity_op = "embedding <#> %s::vector"
             else:
                 raise ValueError(f"Unsupported similarity metric: {similarity_metric}")
 
+            # Directly pass the array to be converted to a vector by PostgreSQL
             cursor.execute(
                 f"""
                 SELECT id, content, metadata, {similarity_op} as similarity
